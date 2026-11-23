@@ -1,0 +1,26 @@
+{
+  "weights": "/Users/kadalisaimanikanta/Downloads/reweave_ai_mvp/runs/detect/runs/detect/reweave_fabric_defects/weights/best.pt",
+  "dataset_yaml": "/Users/kadalisaimanikanta/Downloads/reweave_ai_mvp/data/textile_defects/data.yaml",
+  "evaluated_split": "test",
+  "evaluation_kind": "held-out test",
+  "images_in_split": 58,
+  "precision_mean": 0.8149467868962436,
+  "recall_mean": 0.79014233619711,
+  "map50": 0.8107186778397111,
+  "map50_95": 0.4340203090512354,
+  "per_class_map50_95": [
+    0.5268642615506167,
+    0.474147137571346,
+    0.3010495280317436
+  ],
+  "class_names": {
+    "0": "hole",
+    "1": "stain",
+    "2": "yarn missing"
+  },
+  "limitations": [
+    "Metrics only apply to this dataset and split.",
+    "Fabric-scrap results do not establish performance on worn post-consumer garments.",
+    "Do not claim accuracy without a representative, independently labelled garment test set."
+  ]
+}

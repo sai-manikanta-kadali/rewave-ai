@@ -1,0 +1,79 @@
+{
+  "dataset_dir": "/Users/kadalisaimanikanta/Downloads/reweave_ai_mvp/data/textile_defects",
+  "yaml_path": "/Users/kadalisaimanikanta/Downloads/reweave_ai_mvp/data/textile_defects/data.yaml",
+  "dataset_root": "/Users/kadalisaimanikanta/Downloads/reweave_ai_mvp/data/textile_defects",
+  "class_names": {
+    "0": "hole",
+    "1": "stain",
+    "2": "yarn missing"
+  },
+  "splits": {
+    "train": {
+      "images": 963,
+      "label_files": 963,
+      "empty_label_files": 96,
+      "missing_label_files": 0,
+      "boxes": 1712,
+      "class_counts": {
+        "yarn missing": 614,
+        "hole": 597,
+        "stain": 501
+      },
+      "invalid_rows": [],
+      "examples": [
+        "yarn missing: 0.46484375 0.48984375 0.6296875 0.06484375",
+        "yarn missing: 0.49765625 0.496875 0.8296875 0.05390625",
+        "yarn missing: 0.5 0.509375 1 0.05703125",
+        "yarn missing: 0.5203125 0.5 0.04765625 1",
+        "yarn missing: 0.49921875 0.51015625 0.9984375 0.034375"
+      ]
+    },
+    "val": {
+      "images": 227,
+      "label_files": 227,
+      "empty_label_files": 22,
+      "missing_label_files": 0,
+      "boxes": 380,
+      "class_counts": {
+        "yarn missing": 151,
+        "stain": 117,
+        "hole": 112
+      },
+      "invalid_rows": [],
+      "examples": [
+        "yarn missing: 0.5140625 0.50703125 0.04375 0.509375",
+        "yarn missing: 0.33671875 0.49609375 0.6734375 0.06171875",
+        "yarn missing: 0.58046875 0.49921875 0.0328125 0.9984375",
+        "yarn missing: 0.50078125 0.425 0.9984375 0.0484375",
+        "yarn missing: 0.53515625 0.4671875 0.8015625 0.06328125"
+      ]
+    },
+    "test": {
+      "images": 58,
+      "label_files": 58,
+      "empty_label_files": 6,
+      "missing_label_files": 0,
+      "boxes": 80,
+      "class_counts": {
+        "stain": 23,
+        "hole": 32,
+        "yarn missing": 25
+      },
+      "invalid_rows": [],
+      "examples": [
+        "stain: 0.51640625 0.7359375 0.07578125 0.1703125",
+        "hole: 0.53828125 0.43671875 0.0796875 0.134375",
+        "hole: 0.13515625 0.68984375 0.0484375 0.096875",
+        "hole: 0.63125 0.546875 0.14375 0.11171875",
+        "hole: 0.54921875 0.37421875 0.053125 0.11875"
+      ]
+    }
+  },
+  "total_images": 1248,
+  "total_boxes": 2172,
+  "duplicate_warnings": [],
+  "diagnostics": [],
+  "detection_ready": true,
+  "semantic_review_required": false,
+  "note": "detection_ready means basic YOLO structure and the automated background-class guard passed; it does not establish annotation quality, garment-domain suitability, or model accuracy."
+}

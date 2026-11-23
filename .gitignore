@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+*.db
+*.db.backup
+*.bak
+data/
+runs/
+yolo*.pt
+!models/reweave_defect_yolo.pt
