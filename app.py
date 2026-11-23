@@ -28,7 +28,9 @@ from reweave_decision import (
 from reweave_ocr import run_label_ocr
 from reweave_vision import DEFAULT_MODEL_PATH, detect_defects, load_defect_model
 
-EVAL_REPORT_PATH = Path(__file__).resolve().parent / "reports" / "model_evaluation.json"
+BASE_DIR = Path(__file__).resolve().parent
+EVAL_REPORT_PATH = BASE_DIR / "reports" / "model_evaluation.json"
+DEMO_DIR = BASE_DIR / "demo_samples"
 ALL_PATHWAYS = [PATHWAY_REUSE, PATHWAY_REPAIR, PATHWAY_RECOVERY, PATHWAY_MANUAL]
 RECOVERY_LABELS = {PATHWAY_RECOVERY, "MATERIAL TESTING / RECYCLING ASSESSMENT"}
 
@@ -45,10 +47,10 @@ init_db()
 st.markdown(
     """
     <style>
-      .block-container {padding-top: 1.8rem; padding-bottom: 2rem; max-width: 1280px;}
-      .rw-kicker {color:#0f766e; font-weight:700; letter-spacing:.12em; font-size:.75rem;}
-      .rw-sub {color:#64748b; font-size:1rem;}
-      div[data-testid="stMetric"] {border:1px solid rgba(120,120,120,.22); padding:12px; border-radius:12px;}
+      .block-container {padding-top: 1.6rem; padding-bottom: 2rem; max-width: 1280px;}
+      .rw-kicker {color:#14b8a6; font-weight:700; letter-spacing:.12em; font-size:.75rem;}
+      .rw-sub {color:#94a3b8; font-size:1rem;}
+      div[data-testid="stMetric"] {border:1px solid rgba(148,163,184,.25); padding:12px; border-radius:12px;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -77,19 +79,31 @@ def _safe_json_list(raw_val) -> list:
         return []
 
 
+def show_pathway_banner(pathway: str) -> None:
+    if pathway == PATHWAY_REUSE:
+        st.success(f"**Recommended Pathway:** {pathway}")
+    elif pathway == PATHWAY_REPAIR:
+        st.info(f"**Recommended Pathway:** {pathway}")
+    elif pathway == PATHWAY_MANUAL:
+        st.warning(f"**Recommended Pathway:** {pathway}")
+    else:
+        st.error(f"**Recommended Pathway:** {pathway}")
+
+
 def show_dashboard() -> None:
     st.subheader("Sorting analytics dashboard")
     df = fetch_inspections()
     if df.empty:
-        st.info("No inspections recorded yet. Create your first inspection in the New inspection tab.")
+        st.info(
+            "No inspections recorded yet. Go to **New inspection**, click a **1-Click Judge Demo Sample**, "
+            "and confirm an inspection to see live analytics populate here."
+        )
         return
 
-    # Normalize pathway names cleanly so legacy & updated recovery records count together.
     total = len(df)
     reuse = int((df["recommendation"] == PATHWAY_REUSE).sum())
     repair = int((df["recommendation"] == PATHWAY_REPAIR).sum())
     testing = int(df["recommendation"].isin(RECOVERY_LABELS).sum())
-    manual = int((df["recommendation"] == PATHWAY_MANUAL).sum())
     confirmed = int((df["confirmation_status"] == "CONFIRMED").sum())
     pending = total - confirmed
 
@@ -135,7 +149,6 @@ def show_dashboard() -> None:
     status_counts = df["confirmation_status"].value_counts().rename_axis("Status").to_frame("Records")
     st.bar_chart(status_counts, horizontal=True)
 
-    # Quick confirmation panel for any pending records.
     pending_df = df[df["confirmation_status"] != "CONFIRMED"]
     if not pending_df.empty:
         with st.expander(f"Review & confirm pending inspections ({len(pending_df)})", expanded=False):
@@ -181,10 +194,10 @@ def show_about_page() -> None:
         """
         **Active pipeline in this build**
         1. **Image Intake (OpenCV):** EXIF orientation fix, RGB normalization, brightness & Laplacian sharpness diagnostics.
-        2. **Visible Defect Detection (Custom YOLO):** Fine-tuned `yolo26n` on audited textile defect data (`hole`, `stain`, `yarn missing`) running locally on Apple Silicon / CPU.
-        3. **Care-Label OCR (OpenCV CLAHE + EasyOCR):** Enhances contrast on optional tag photos, extracts explicit `% + fibre` pairs and care instructions, and keeps missing/unreadable composition strictly **`UNKNOWN`**.
-        4. **Explainable Decision Engine:** Separates YOLO suggestions, OCR evidence, and worker observations; triggers a **Human–AI conflict check** if a worker marks *"Ready to wear"* while YOLO flags a high-confidence defect.
-        5. **Human-in-the-Loop Confirmation & SQLite Log:** Every record tracks `PENDING` vs `CONFIRMED` status in `reweave.db`.
+        2. **Visible Defect Detection (Custom YOLO):** Fine-tuned `yolo26n` (5.2 MB) on audited textile defect data (`hole`, `stain`, `yarn missing`) running locally on Apple Silicon / CPU.
+        3. **Care-Label OCR (OpenCV LAB-CLAHE + EasyOCR):** Enhances contrast on optional tag photos, extracts explicit `% + fibre` pairs & care instructions, and keeps missing/unreadable composition strictly **`UNKNOWN`**.
+        4. **Explainable Decision Engine:** Separates YOLO suggestions, OCR evidence, and worker observations; triggers a **Human–AI conflict guard** if a worker marks *"Ready to wear"* while YOLO flags a high-confidence defect.
+        5. **Human-in-the-Loop Confirmation & SQLite Log:** Every record tracks `PENDING` vs `CONFIRMED` status in `reweave.db` with safe in-place schema migration.
         """
     )
 
@@ -192,7 +205,7 @@ def show_about_page() -> None:
         eval_data = json.loads(EVAL_REPORT_PATH.read_text(encoding="utf-8"))
         st.markdown("#### Verified YOLO baseline metrics (Held-out `test` split)")
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Test Images", eval_data.get("images_in_split", "—"))
+        m1.metric("Unseen Test Images", eval_data.get("images_in_split", "—"))
         m2.metric("Precision", f"{eval_data.get('precision_mean', 0):.1%}")
         m3.metric("Recall", f"{eval_data.get('recall_mean', 0):.1%}")
         m4.metric("mAP@50", f"{eval_data.get('map50', 0):.1%}")
@@ -204,13 +217,13 @@ def show_about_page() -> None:
     st.warning(
         "**Known limitations (Honest engineering):**\n"
         "- Ordinary RGB photographs **cannot** identify chemical fibre blends — missing labels stay `UNKNOWN`.\n"
-        "- The YOLO detector was trained on fabric defect images; worn, wrinkled post-consumer garments present a domain gap.\n"
+        "- The baseline YOLO detector was trained on flat fabric defect images; real worn/patterned garments (e.g., dark shirt buttons) can cause domain-gap false positives or misses.\n"
         "- Absence of a YOLO detection does **not** prove a garment is defect-free.\n"
         "- Worker confirmation is mandatory before final sorting or recycling."
     )
 
 
-st.markdown('<div class="rw-kicker">CIRCULAR TEXTILE INTELLIGENCE • INNOVATE INDIA 2026</div>', unsafe_allow_html=True)
+st.markdown('<div class="rw-kicker">CIRCULAR TEXTILE INTELLIGENCE • INNOVATE INDIA 2026 • PANIPAT ECOSYSTEM</div>', unsafe_allow_html=True)
 st.title("🧵 ReWeave AI")
 st.markdown(
     '<div class="rw-sub">Human-in-the-loop textile sorting assistant prioritizing REUSE and REPAIR before material recovery.</div>',
@@ -222,7 +235,7 @@ yolo_model = get_yolo_model()
 
 with st.sidebar:
     st.header("ReWeave AI")
-    st.caption("Local AI Build • Vision + OCR + HITL")
+    st.caption("Open-Source AI • Vision + OCR + HITL")
     page = st.radio("Workspace", ["New inspection", "Sorting dashboard", "Architecture & model metrics"])
     st.divider()
     conf_threshold = st.slider(
@@ -239,17 +252,55 @@ with st.sidebar:
         st.warning("YOLO weights not found in `models/reweave_defect_yolo.pt`.")
     st.divider()
     st.caption("Core safeguards")
-    st.write("• Unknown fibre stays **UNKNOWN**\n• YOLO suggests; **worker confirms**")
+    st.write("• Unknown fibre stays **UNKNOWN**\n• YOLO suggests; **worker confirms**\n• Human–AI conflict guard active")
 
 if page == "New inspection":
-    st.subheader("Step 1: Upload garment & optional care-label photos")
+    # 1-Click Judge Demo Samples bar
+    stain_sample = DEMO_DIR / "sample_stain.jpg"
+    hole_sample = DEMO_DIR / "sample_hole.jpg"
+    tag_sample = DEMO_DIR / "sample_care_label.png"
+
+    if stain_sample.is_file() or hole_sample.is_file():
+        st.markdown("##### ⚡ Quick Test for Judges (1-Click Real Test Samples)")
+        d1, d2, d3 = st.columns([1.2, 1.3, 0.7])
+        if d1.button("🧪 Demo 1: Stained Fabric + Cotton Tag", width="stretch"):
+            st.session_state["demo_garment"] = str(stain_sample)
+            st.session_state["demo_label"] = str(tag_sample) if tag_sample.is_file() else None
+            st.session_state["demo_condition_idx"] = 1  # Minor repair needed
+            st.session_state["demo_note"] = "Loaded unseen test stain + sample 100% Cotton tag"
+            st.rerun()
+        if d2.button("⚠️ Demo 2: Hole Defect (Conflict Guard Test)", width="stretch"):
+            st.session_state["demo_garment"] = str(hole_sample) if hole_sample.is_file() else str(stain_sample)
+            st.session_state["demo_label"] = None
+            st.session_state["demo_condition_idx"] = 0  # Ready to wear -> triggers Human-AI conflict!
+            st.session_state["demo_note"] = "Simulating worker marking 'Ready to wear' on a damaged item"
+            st.rerun()
+        if d3.button("🧹 Clear Demo", width="stretch"):
+            st.session_state.pop("demo_garment", None)
+            st.session_state.pop("demo_label", None)
+            st.session_state.pop("demo_condition_idx", None)
+            st.session_state.pop("demo_note", None)
+            st.rerun()
+        st.write("")
+
+    st.subheader("Step 1: Capture or upload garment & optional care-label photos")
+    capture_mode = st.radio(
+        "Garment input method",
+        ["Upload photo", "Take photo (Mobile / Webcam)"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+
     up1, up2 = st.columns([1.1, 0.9], gap="large")
     with up1:
-        garment_file = st.file_uploader(
-            "1. Garment photo (required)",
-            type=["jpg", "jpeg", "png", "webp"],
-            help="Upload a clear, well-lit photo of the garment or textile item.",
-        )
+        if capture_mode == "Upload photo":
+            garment_file = st.file_uploader(
+                "1. Garment photo (required)",
+                type=["jpg", "jpeg", "png", "webp"],
+                help="Upload a clear, well-lit photo of the garment or textile item.",
+            )
+        else:
+            garment_file = st.camera_input("1. Snap garment photo directly")
     with up2:
         label_file = st.file_uploader(
             "2. Care-label photo (optional)",
@@ -258,34 +309,46 @@ if page == "New inspection":
         )
 
     garment_image = None
+    garment_name = None
     label_image = None
 
+    # Uploaded / captured image takes priority over demo sample
     if garment_file is not None:
         try:
             garment_image = prepare_image(Image.open(BytesIO(garment_file.getvalue())))
-            preview_col, diag_col = st.columns([1, 1], gap="large")
-            preview_col.image(garment_image, caption=f"Uploaded: {garment_file.name}", width="stretch")
-            diagnostics = image_diagnostics(garment_image)
-            diag_col.markdown("**OpenCV intake diagnostics (image quality only)**")
-            diag_col.write(f"Resolution: **{diagnostics['width']} × {diagnostics['height']} px**")
-            diag_col.write(f"Mean brightness: **{diagnostics['mean_brightness']} / 255**")
-            diag_col.write(f"Sharpness proxy: **{diagnostics['sharpness_proxy']}**")
-            if diagnostics["mean_brightness"] < 45:
-                diag_col.warning("Low lighting detected — better lighting improves YOLO and visual checks.")
-            if diagnostics["sharpness_proxy"] < 30:
-                diag_col.warning("Photo may be blurry — consider retaking a sharper image.")
+            garment_name = garment_file.name
         except Exception as exc:
-            garment_image = None
             st.error(f"Could not open garment image: {exc}")
+    elif st.session_state.get("demo_garment") and Path(st.session_state["demo_garment"]).is_file():
+        demo_p = Path(st.session_state["demo_garment"])
+        garment_image = prepare_image(Image.open(demo_p))
+        garment_name = f"demo/{demo_p.name}"
+        st.info(f"Using 1-click demo sample: `{demo_p.name}` — click **Run AI Inspection** below!")
 
     if label_file is not None:
         try:
             label_image = prepare_image(Image.open(BytesIO(label_file.getvalue())))
-            with st.expander("Preview uploaded care-label photo", expanded=False):
-                st.image(label_image, caption=f"Care label: {label_file.name}", width=320)
         except Exception as exc:
-            label_image = None
             st.warning(f"Could not open care-label image: {exc}. Composition will remain UNKNOWN.")
+    elif garment_file is None and st.session_state.get("demo_label") and Path(st.session_state["demo_label"]).is_file():
+        label_image = prepare_image(Image.open(Path(st.session_state["demo_label"])))
+
+    if garment_image is not None:
+        preview_col, diag_col = st.columns([1, 1], gap="large")
+        preview_col.image(garment_image, caption=f"Input: {garment_name}", width="stretch")
+        diagnostics = image_diagnostics(garment_image)
+        diag_col.markdown("**OpenCV intake diagnostics (image quality only)**")
+        diag_col.write(f"Resolution: **{diagnostics['width']} × {diagnostics['height']} px**")
+        diag_col.write(f"Mean brightness: **{diagnostics['mean_brightness']} / 255**")
+        diag_col.write(f"Sharpness proxy: **{diagnostics['sharpness_proxy']}**")
+        if diagnostics["mean_brightness"] < 45:
+            diag_col.warning("Low lighting detected — better lighting improves YOLO and visual checks.")
+        if diagnostics["sharpness_proxy"] < 30:
+            diag_col.warning("Photo may be blurry — consider retaking a sharper image.")
+
+    if label_image is not None:
+        with st.expander("Preview loaded care-label photo", expanded=False):
+            st.image(label_image, caption="Care-label input for LAB-CLAHE OCR", width=320)
 
     st.divider()
     st.subheader("Step 2: Worker observation & AI analysis")
@@ -301,21 +364,26 @@ if page == "New inspection":
                 "Worker-observed damage",
                 ["Hole", "Tear", "Stain", "Loose seam", "Missing button", "Colour fading", "No visible damage", "Other / unsure"],
             )
-            worker_notes = st.text_area("Worker notes (optional)", placeholder="Example: small stain near collar, easily washable")
+            worker_notes = st.text_area(
+                "Worker notes (optional)",
+                value=st.session_state.get("demo_note", ""),
+                placeholder="Example: small stain near collar, easily washable",
+            )
         with right:
             condition = st.radio(
                 "Worker-assessed condition",
                 ["Ready to wear", "Minor repair needed", "Beyond repair", "Unsure — needs inspection"],
+                index=st.session_state.get("demo_condition_idx", 0),
                 help="Combined with YOLO detections and OCR evidence in the explainable decision engine.",
             )
 
         submitted = st.form_submit_button("Run AI Inspection & Generate Recommendation", type="primary", width="stretch")
 
     if submitted:
-        if garment_file is None or garment_image is None:
-            st.error("Please upload a valid garment photo before running inspection.")
+        if garment_image is None or garment_name is None:
+            st.error("Please upload a garment photo, use the camera, or click a 1-Click Judge Demo Sample above.")
         else:
-            with st.spinner("Running YOLO defect detection, care-label OCR, and decision rules..."):
+            with st.spinner("Running YOLO defect detection, care-label OCR, and explainable rules..."):
                 vision_out = detect_defects(garment_image, yolo_model, conf_threshold=conf_threshold)
 
                 if label_image is not None:
@@ -347,7 +415,7 @@ if page == "New inspection":
                 )
 
                 record = {
-                    "image_name": garment_file.name,
+                    "image_name": garment_name,
                     "garment_type": garment_type,
                     "condition": condition,
                     "observed_damage": observed_damage,
@@ -374,7 +442,6 @@ if page == "New inspection":
                     "confirmed_pathway": "",
                 }
 
-    # Display active inspection results & Worker Confirmation step
     active = st.session_state.get("last_inspection")
     if active:
         st.divider()
@@ -385,7 +452,10 @@ if page == "New inspection":
         ocr_out = active["ocr"]
 
         if decision["conflict_flag"]:
-            st.error("⚠️ **Human–AI Conflict Detected:** Worker selected 'Ready to wear', but visible defect evidence was flagged. Please visually re-check before confirming.")
+            st.error(
+                "⚠️ **Human–AI Conflict Detected:** Worker selected 'Ready to wear', but visible defect evidence was flagged. "
+                "Please visually re-check before confirming."
+            )
 
         col_vis, col_rec = st.columns([1.05, 0.95], gap="large")
         with col_vis:
@@ -406,7 +476,7 @@ if page == "New inspection":
 
         with col_rec:
             st.markdown("#### 2. Recommended Pathway (Rules Engine)")
-            st.success(f"**Recommended:** {decision['recommended_pathway']}")
+            show_pathway_banner(decision["recommended_pathway"])
             for reason in decision["reasons"]:
                 st.write(f"• {reason}")
 
