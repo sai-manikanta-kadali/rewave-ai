@@ -41,6 +41,10 @@ def preprocess_label_image(image: Image.Image) -> np.ndarray:
     """
     rgb = np.asarray(prepare_image(image))
     height, width = rgb.shape[:2]
+    if max(height, width) > 1000:
+        down = 1000.0 / float(max(height, width))
+        rgb = cv2.resize(rgb, (int(width * down), int(height * down)), interpolation=cv2.INTER_AREA)
+        height, width = rgb.shape[:2]
     if min(height, width) < 600:
         scale = min(2.0, 600.0 / max(1, min(height, width)))
         rgb = cv2.resize(
