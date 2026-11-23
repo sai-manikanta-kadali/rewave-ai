@@ -5,7 +5,6 @@ from collections import Counter
 from io import BytesIO
 from pathlib import Path
 
-import easyocr
 import pandas as pd
 import streamlit as st
 from PIL import Image
@@ -59,6 +58,8 @@ st.markdown(
 
 @st.cache_resource(show_spinner="Loading English care-label OCR model...")
 def get_ocr_reader():
+    import easyocr
+
     return easyocr.Reader(["en"], gpu=False)
 
 
